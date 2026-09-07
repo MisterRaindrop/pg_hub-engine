@@ -290,20 +290,36 @@ class GitHubClient:
         comments = self.request(
             "GET", f"{self.repo_path}/issues/{pr_number}/comments?per_page=100"
         )
+        mutation: tuple[str, str, dict[str, str]] | None = None
         for comment in comments:
             existing_body = str(comment.get("body", ""))
             if marker not in existing_body:
                 continue
             if existing_body != body:
-                self.request(
+                mutation = (
                     "PATCH",
                     f"{self.repo_path}/issues/comments/{comment['id']}",
                     {"body": body},
                 )
-            return
-        self.request(
-            "POST", f"{self.repo_path}/issues/{pr_number}/comments", {"body": body}
-        )
+            else:
+                return
+            break
+        if mutation is None:
+            mutation = (
+                "POST",
+                f"{self.repo_path}/issues/{pr_number}/comments",
+                {"body": body},
+            )
+
+        issue = self.request("GET", f"{self.repo_path}/issues/{pr_number}")
+        was_locked = bool(issue.get("locked"))
+        if was_locked:
+            self.request("DELETE", f"{self.repo_path}/issues/{pr_number}/lock")
+        try:
+            self.request(*mutation)
+        finally:
+            if was_locked:
+                self.request("PUT", f"{self.repo_path}/issues/{pr_number}/lock", {})
 
     def _discussion(self, number: int, include_comments: bool = False) -> dict[str, Any]:
         owner, name = self.config.github_repository.split("/", 1)
@@ -312,7 +328,7 @@ class GitHubClient:
             f"""
             query($owner: String!, $name: String!, $number: Int!) {{
               repository(owner: $owner, name: $name) {{
-                discussion(number: $number) {{ id number {comments} }}
+                discussion(number: $number) {{ id number locked {comments} }}
               }}
             }}
             """,
@@ -325,12 +341,13 @@ class GitHubClient:
 
     def add_discussion_comment(self, number: int, body: str, marker: str) -> None:
         discussion = self._discussion(number, include_comments=True)
+        mutation: tuple[str, dict[str, str]] | None = None
         for comment in discussion["comments"]["nodes"]:
             existing_body = str(comment.get("body", ""))
             if marker not in existing_body:
                 continue
             if existing_body != body:
-                self.graphql(
+                mutation = (
                     """
                     mutation($id: ID!, $body: String!) {
                       updateDiscussionComment(input: {commentId: $id, body: $body}) {
@@ -340,16 +357,41 @@ class GitHubClient:
                     """,
                     {"id": comment["id"], "body": body},
                 )
-            return
+            else:
+                return
+            break
+        if mutation is None:
+            mutation = (
+                """
+                mutation($discussionId: ID!, $body: String!) {
+                  addDiscussionComment(input: {discussionId: $discussionId, body: $body}) {
+                    comment { id }
+                  }
+                }
+                """,
+                {"discussionId": discussion["id"], "body": body},
+            )
+
+        was_locked = bool(discussion.get("locked"))
+        if was_locked:
+            self._set_discussion_lock(discussion["id"], locked=False)
+        try:
+            self.graphql(*mutation)
+        finally:
+            if was_locked:
+                self._set_discussion_lock(discussion["id"], locked=True)
+
+    def _set_discussion_lock(self, discussion_id: str, locked: bool) -> None:
+        operation = "lockLockable" if locked else "unlockLockable"
         self.graphql(
-            """
-            mutation($discussionId: ID!, $body: String!) {
-              addDiscussionComment(input: {discussionId: $discussionId, body: $body}) {
-                comment { id }
-              }
-            }
+            f"""
+            mutation($id: ID!) {{
+              {operation}(input: {{lockableId: $id}}) {{
+                lockedRecord {{ locked }}
+              }}
+            }}
             """,
-            {"discussionId": discussion["id"], "body": body},
+            {"id": discussion_id},
         )
 
     def lock(self, kind: str, number: int) -> None:
@@ -357,14 +399,8 @@ class GitHubClient:
             self.request("PUT", f"{self.repo_path}/issues/{number}/lock", {})
             return
         discussion = self._discussion(number)
-        self.graphql(
-            """
-            mutation($id: ID!) {
-              lockLockable(input: {lockableId: $id}) { lockedRecord { locked } }
-            }
-            """,
-            {"id": discussion["id"]},
-        )
+        if not discussion.get("locked"):
+            self._set_discussion_lock(discussion["id"], locked=True)
 
     def link_discussion_pr(
         self, discussion_number: int, pr_number: int, marker: str
