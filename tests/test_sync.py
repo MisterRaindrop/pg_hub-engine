@@ -29,6 +29,9 @@ class SyncTests(unittest.TestCase):
             store = StateStore(Path(temp) / "state.db")
             sink = ConsoleSink(verbose=False)
             sources = FixtureSources.load(ROOT / "fixtures" / "demo.json")
+            attachment = sources.mail.items[0].attachments[0]
+            self.assertTrue(attachment.url.startswith("https://github.com/"))
+            self.assertTrue(attachment.effective_download_url.startswith("file://"))
             engine = SyncEngine(store, sink)
             first = engine.sync_all(sources.mail, sources.commitfest, sources.git)
             action_count = len(sink.actions)

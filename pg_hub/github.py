@@ -173,7 +173,16 @@ class GitHubClient:
         comments = self.request(
             "GET", f"{self.repo_path}/issues/{pr_number}/comments?per_page=100"
         )
-        if any(marker in str(comment.get("body", "")) for comment in comments):
+        for comment in comments:
+            existing_body = str(comment.get("body", ""))
+            if marker not in existing_body:
+                continue
+            if existing_body != body:
+                self.request(
+                    "PATCH",
+                    f"{self.repo_path}/issues/comments/{comment['id']}",
+                    {"body": body},
+                )
             return
         self.request(
             "POST", f"{self.repo_path}/issues/{pr_number}/comments", {"body": body}
@@ -276,7 +285,7 @@ class PatchPublisher:
             safe_name = Path(attachment.name).name
             path = destination / f"{index:04d}-{safe_name}"
             request = Request(
-                attachment.url,
+                attachment.effective_download_url,
                 method="GET",
                 headers={"User-Agent": "pg_hub/0.1"},
             )

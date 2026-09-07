@@ -400,9 +400,9 @@ def _mail_from_json(value: dict[str, Any], fixture_dir: Path) -> MailMessage:
     attachments = []
     for item in data.pop("attachments", []):
         attachment = dict(item)
-        url = str(attachment["url"])
-        if url.startswith("fixture://"):
-            relative = url.removeprefix("fixture://")
-            attachment["url"] = (fixture_dir / relative).resolve().as_uri()
+        download_url = str(attachment.get("download_url", ""))
+        if download_url.startswith("fixture://"):
+            relative = download_url.removeprefix("fixture://")
+            attachment["download_url"] = (fixture_dir / relative).resolve().as_uri()
         attachments.append(Attachment(**attachment))
     return MailMessage(attachments=tuple(attachments), **data)

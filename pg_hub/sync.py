@@ -104,7 +104,12 @@ class SyncEngine:
                     latest_patch_fingerprint=patch_fingerprint,
                 )
                 self.state.save_thread(mirror)
-        if not created:
+        is_root_message = message.message_id == message.thread_id
+        if not created and is_root_message:
+            self.sink.ensure_pr(
+                mirror.title, render_pr_body(message), mirror.branch
+            )
+        if not created and not is_root_message:
             marker = marker_for("message", message.message_id)
             self.sink.comment(mirror.pr_number, render_mail_comment(message, marker), marker)
         labels = self.state.labels(message.thread_id)

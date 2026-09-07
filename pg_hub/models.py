@@ -20,11 +20,16 @@ class Attachment:
     url: str
     content_type: str = "application/octet-stream"
     size: str = ""
+    download_url: str | None = None
 
     @property
     def is_patch(self) -> bool:
         lower = self.name.lower()
         return lower.endswith((".patch", ".diff"))
+
+    @property
+    def effective_download_url(self) -> str:
+        return self.download_url or self.url
 
 
 @dataclass(frozen=True)
