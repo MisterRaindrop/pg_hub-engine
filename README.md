@@ -164,6 +164,8 @@ The workflow in `.github/workflows/sync.yml` expects:
 
 - repository variable `PG_HUB_TARGET_REPOSITORY`;
 - optional variables `PG_HUB_BASE_BRANCH` and `PG_HUB_COMMITFEST_ID`;
+- optional bootstrap bounds `PG_HUB_MAIL_LOOKBACK_MINUTES` and
+  `PG_HUB_MAIL_MAX_MESSAGES` (the workflow defaults to 60 minutes / 50 mails);
 - secret `PG_HUB_GITHUB_TOKEN` scoped to the target mirror.
 - repository variable `PG_HUB_ENABLED=true` only after a manual fixture run
   succeeds; without it, scheduled jobs remain safely disabled.
