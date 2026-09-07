@@ -202,7 +202,14 @@ class PostgresArchiveSource:
 
     def poll(self, cursor: str | None) -> PollBatch:
         if cursor:
-            start = self._parse_cursor(cursor) - timedelta(minutes=1)
+            try:
+                start = self._parse_cursor(cursor) - timedelta(minutes=1)
+            except ValueError:
+                # Older demos shared a cursor key with fixture mode. Treat a
+                # non-time cursor as an uninitialized live source.
+                start = datetime.now(timezone.utc) - timedelta(
+                    minutes=self.config.mail_lookback_minutes
+                )
         else:
             start = datetime.now(timezone.utc) - timedelta(
                 minutes=self.config.mail_lookback_minutes
@@ -368,9 +375,9 @@ class FixtureSources:
         commitfest = tuple(CommitFestEntry(**_tuple_fields(item, "tags")) for item in document["commitfest"])
         git = tuple(GitCommit(**item) for item in document["git"])
         return cls(
-            mail=FixtureSource("mail", mail),
-            commitfest=FixtureSource("commitfest", commitfest),
-            git=FixtureSource("git", git),
+            mail=FixtureSource("fixture-mail", mail),
+            commitfest=FixtureSource("fixture-commitfest", commitfest),
+            git=FixtureSource("fixture-git", git),
         )
 
 

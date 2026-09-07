@@ -29,6 +29,7 @@ class SyncTests(unittest.TestCase):
             store = StateStore(Path(temp) / "state.db")
             sink = ConsoleSink(verbose=False)
             sources = FixtureSources.load(ROOT / "fixtures" / "demo.json")
+            self.assertEqual(sources.mail.name, "fixture-mail")
             attachment = sources.mail.items[0].attachments[0]
             self.assertTrue(attachment.url.startswith("https://github.com/"))
             self.assertTrue(attachment.effective_download_url.startswith("file://"))
