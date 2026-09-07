@@ -387,7 +387,7 @@ class GitHubClient:
             f"""
             mutation($id: ID!) {{
               {operation}(input: {{lockableId: $id}}) {{
-                lockedRecord {{ locked }}
+                clientMutationId
               }}
             }}
             """,
