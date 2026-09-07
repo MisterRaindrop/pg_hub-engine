@@ -37,7 +37,7 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ vars.PG_HUB_APP_ID }}
+          client-id: ${{ vars.PG_HUB_APP_CLIENT_ID }}
           private-key: ${{ secrets.PG_HUB_APP_PRIVATE_KEY }}
           owner: MisterRaindrop
           repositories: pg_hub

@@ -177,7 +177,7 @@ The workflow in `.github/workflows/sync.yml` expects:
 - optional variables `PG_HUB_BASE_BRANCH` and `PG_HUB_COMMITFEST_ID`;
 - optional bootstrap bounds `PG_HUB_MAIL_LOOKBACK_MINUTES` and
   `PG_HUB_MAIL_MAX_MESSAGES` (the workflow defaults to 60 minutes / 50 mails);
-- repository variable `PG_HUB_APP_ID`;
+- repository variable `PG_HUB_APP_CLIENT_ID`;
 - secret `PG_HUB_APP_PRIVATE_KEY` containing the App's PEM private key;
 - repository variable `PG_HUB_ENABLED=true` only after a manual fixture run
   succeeds; without it, scheduled jobs remain safely disabled.
