@@ -237,7 +237,7 @@ class PatchPublisher:
             worktree = temp_path / "worktree"
             self._run(
                 "git", "-C", str(self.checkout), "worktree", "add", "--detach",
-                str(worktree), f"origin/{self.config.postgres_git_branch}",
+                str(worktree), f"origin/{self.config.github_base_branch}",
             )
             try:
                 self._run("git", "-C", str(worktree), "switch", "-C", branch)
@@ -255,14 +255,16 @@ class PatchPublisher:
 
     def _prepare_checkout(self) -> None:
         self.checkout.parent.mkdir(parents=True, exist_ok=True)
+        mirror_url = f"https://github.com/{self.config.github_repository}.git"
         if not self.checkout.exists():
             self._run(
-                "git", "clone", "--filter=blob:none", "--no-checkout",
-                self.config.postgres_git_url, str(self.checkout),
+                "git", "clone", "--filter=blob:none", "--depth=1", "--no-checkout",
+                "--branch", self.config.github_base_branch,
+                mirror_url, str(self.checkout),
             )
         self._run(
             "git", "-C", str(self.checkout), "fetch", "--quiet", "origin",
-            self.config.postgres_git_branch,
+            self.config.github_base_branch,
         )
 
     @staticmethod

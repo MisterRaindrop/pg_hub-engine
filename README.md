@@ -189,6 +189,9 @@ scheduled runs always use the live sources.
 - Patch application tries `git am --3way`, then a plain indexed `git apply`.
   Conflicting or base-incompatible patchsets fail visibly and are retried; the
   previous mirror branch remains available.
+- Patch branches use a depth-1 checkout of the configured GitHub mirror base;
+  postgres.git commit polling keeps only a bounded recent history. The service
+  never needs a full PostgreSQL history clone.
 - Mirrored comments are authored by the bot and retain the real mail author in
   the comment body. Identity federation is out of scope for V0.
 
