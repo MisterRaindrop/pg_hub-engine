@@ -4,6 +4,15 @@ on:
   schedule:
     - cron: "*/10 * * * *"
   workflow_dispatch:
+    inputs:
+      source:
+        description: Data source for this run
+        required: true
+        default: fixture
+        type: choice
+        options:
+          - fixture
+          - live
 
 concurrency:
   group: pg-hub-sync
@@ -14,15 +23,21 @@ permissions:
 
 jobs:
   sync:
-    if: ${{ vars.PG_HUB_ENABLED == 'true' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.PG_HUB_ENABLED == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 9
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+
+      - name: Restore PostgreSQL git cache
+        uses: actions/cache@v4
+        with:
+          path: .pg_hub/cache
+          key: pg-hub-git-${{ runner.os }}-v1-${{ hashFiles('pg_hub/github.py', 'pg_hub/sources.py') }}
 
       - name: Restore durable cursors and dedup state
         uses: actions/cache@v4
@@ -46,5 +61,5 @@ jobs:
           GIT_POLL_SECONDS: "600"
 
       - name: Synchronize official read-only sources to the target mirror
-        run: python -m pg_hub sync --source live --sink github
+        run: python -m pg_hub sync --source "${{ github.event.inputs.source || 'live' }}" --sink github
         env: *pg_hub_env

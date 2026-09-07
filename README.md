@@ -165,12 +165,17 @@ The workflow in `.github/workflows/sync.yml` expects:
 - repository variable `PG_HUB_TARGET_REPOSITORY`;
 - optional variables `PG_HUB_BASE_BRANCH` and `PG_HUB_COMMITFEST_ID`;
 - secret `PG_HUB_GITHUB_TOKEN` scoped to the target mirror.
-- repository variable `PG_HUB_ENABLED=true` only after the secret and target
-  repository are ready; without it, scheduled jobs remain safely disabled.
+- repository variable `PG_HUB_ENABLED=true` only after a manual fixture run
+  succeeds; without it, scheduled jobs remain safely disabled.
 
 It restores and saves `.pg_hub/state.db` through the Actions cache. For a real
 deployment, a persistent volume and backed-up SQLite file are more predictable
 than an Actions cache.
+
+After adding the token, use **Actions → pg_hub read-only mirror → Run workflow**
+and keep the default `fixture` source. This creates one controlled demonstration
+PR in the mirror. Only after that succeeds should `PG_HUB_ENABLED=true` be set;
+scheduled runs always use the live sources.
 
 ## Important demo limitations
 
