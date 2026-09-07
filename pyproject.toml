@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pg-hub"
+version = "0.1.0"
+description = "Read-only PostgreSQL development activity mirror for GitHub"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "pg_hub contributors" }]
+dependencies = []
+
+[project.scripts]
+pg-hub = "pg_hub.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["pg_hub*"]

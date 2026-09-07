@@ -1,0 +1,71 @@
+{
+  "mail": [
+    {
+      "message_id": "demo-v1@postgresql.org",
+      "thread_id": "demo-v1@postgresql.org",
+      "subject": "[PATCH v1] Improve asynchronous buffer prefetch",
+      "author": "Thomas Example <thomas@example.test>",
+      "sent_at": "2026-09-07T01:00:00+00:00",
+      "body": "This patch teaches the buffer manager to issue asynchronous prefetch requests. Feedback is welcome.",
+      "archive_url": "https://www.postgresql.org/message-id/demo-v1%40postgresql.org",
+      "attachments": [
+        {
+          "name": "v1-0001-async-buffer-prefetch.patch",
+          "url": "fixture://v1-0001-async-buffer-prefetch.patch",
+          "content_type": "text/x-patch",
+          "size": "712 bytes"
+        }
+      ]
+    },
+    {
+      "message_id": "demo-review@postgresql.org",
+      "thread_id": "demo-v1@postgresql.org",
+      "in_reply_to": "demo-v1@postgresql.org",
+      "subject": "Re: [PATCH v1] Improve asynchronous buffer prefetch",
+      "author": "Andres Example <andres@example.test>",
+      "sent_at": "2026-09-07T01:08:00+00:00",
+      "body": "The direction looks useful. Please document how cancellation interacts with the buffer I/O state.",
+      "archive_url": "https://www.postgresql.org/message-id/demo-review%40postgresql.org",
+      "attachments": []
+    },
+    {
+      "message_id": "demo-v2@postgresql.org",
+      "thread_id": "demo-v1@postgresql.org",
+      "in_reply_to": "demo-review@postgresql.org",
+      "subject": "Re: [PATCH v2] Improve asynchronous buffer prefetch",
+      "author": "Thomas Example <thomas@example.test>",
+      "sent_at": "2026-09-07T01:16:00+00:00",
+      "body": "Here is v2. It documents cancellation and adds the missing state check.",
+      "archive_url": "https://www.postgresql.org/message-id/demo-v2%40postgresql.org",
+      "attachments": [
+        {
+          "name": "v2-0001-async-buffer-prefetch.patch",
+          "url": "fixture://v2-0001-async-buffer-prefetch.patch",
+          "content_type": "text/x-patch",
+          "size": "884 bytes"
+        }
+      ]
+    }
+  ],
+  "commitfest": [
+    {
+      "patch_id": "812",
+      "title": "Improve asynchronous buffer prefetch",
+      "status": "Needs review",
+      "commitfest": "PG20-2",
+      "url": "https://commitfest.postgresql.org/patch/812/",
+      "tags": ["Performance"],
+      "thread_id": "demo-v1@postgresql.org"
+    }
+  ],
+  "git": [
+    {
+      "commit_hash": "71f9de0cafebabefeed1234567890abcdef12345",
+      "subject": "Improve asynchronous buffer prefetch",
+      "author": "PostgreSQL Committer",
+      "committed_at": "2026-09-07T02:00:00+00:00",
+      "url": "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=71f9de0cafebabefeed1234567890abcdef12345",
+      "thread_id": "demo-v1@postgresql.org"
+    }
+  ]
+}

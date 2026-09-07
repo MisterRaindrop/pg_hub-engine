@@ -1,0 +1,50 @@
+name: pg_hub read-only mirror
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: pg-hub-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    if: ${{ vars.PG_HUB_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Restore durable cursors and dedup state
+        uses: actions/cache@v4
+        with:
+          path: .pg_hub/state.db
+          key: pg-hub-state-${{ github.run_id }}
+          restore-keys: |
+            pg-hub-state-
+
+      - name: Validate configuration
+        run: python -m pg_hub doctor
+        env: &pg_hub_env
+          PG_HUB_STATE: .pg_hub/state.db
+          PG_HUB_CACHE: .pg_hub/cache
+          GITHUB_TARGET_REPOSITORY: ${{ vars.PG_HUB_TARGET_REPOSITORY }}
+          GITHUB_BASE_BRANCH: ${{ vars.PG_HUB_BASE_BRANCH || 'master' }}
+          GITHUB_TOKEN: ${{ secrets.PG_HUB_GITHUB_TOKEN }}
+          COMMITFEST_ID: ${{ vars.PG_HUB_COMMITFEST_ID || '61' }}
+          MAIL_POLL_SECONDS: "600"
+          COMMITFEST_POLL_SECONDS: "600"
+          GIT_POLL_SECONDS: "600"
+
+      - name: Synchronize official read-only sources to the target mirror
+        run: python -m pg_hub sync --source live --sink github
+        env: *pg_hub_env

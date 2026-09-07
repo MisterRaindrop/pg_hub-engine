@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.env
+.pg_hub/
+.gp_hub/
+build/
+dist/
+
+# Local ChatGPT project context; not part of the published project.
+AGENTS.md
+sources/

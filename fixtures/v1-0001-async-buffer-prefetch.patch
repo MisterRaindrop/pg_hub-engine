@@ -1,0 +1,20 @@
+From 1111111111111111111111111111111111111111 Mon Sep 17 00:00:00 2001
+From: Thomas Example <thomas@example.test>
+Date: Sun, 7 Sep 2026 09:00:00 +0800
+Subject: [PATCH v1] Add asynchronous buffer prefetch demo
+
+---
+ pg_hub_demo.txt | 2 ++
+ 1 file changed, 2 insertions(+)
+ create mode 100644 pg_hub_demo.txt
+
+diff --git a/pg_hub_demo.txt b/pg_hub_demo.txt
+new file mode 100644
+index 0000000..3d219a1
+--- /dev/null
++++ b/pg_hub_demo.txt
+@@ -0,0 +1,2 @@
++asynchronous buffer prefetch
++demo patch v1
+--
+2.50.0
