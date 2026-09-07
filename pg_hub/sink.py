@@ -19,7 +19,7 @@ class ConsoleSink:
     @staticmethod
     def branch_for(thread_id: str) -> str:
         digest = hashlib.sha256(thread_id.encode("utf-8")).hexdigest()[:16]
-        return f"pg-hub/patch-{digest}"
+        return f"pg-hub/mirror-patch-{digest}"
 
     def _record(self, action: str, **details: object) -> None:
         self.actions.append((action, details))

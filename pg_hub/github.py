@@ -434,7 +434,7 @@ class PatchPublisher:
 
     def branch_for(self, thread_id: str) -> str:
         digest = hashlib.sha256(thread_id.encode("utf-8")).hexdigest()[:16]
-        return f"pg-hub/patch-{digest}"
+        return f"pg-hub/mirror-patch-{digest}"
 
     def publish(self, thread_id: str, attachments: tuple[Attachment, ...]) -> str:
         if not attachments:

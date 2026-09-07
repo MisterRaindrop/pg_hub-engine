@@ -20,7 +20,7 @@ posts mail, edits CommitFest, or pushes to PostgreSQL upstream.
 - A pgsql-hackers thread without a patch becomes a Discussion.
 - A pgsql-bugs thread becomes an Issue.
 - Later messages in that thread become attributed PR comments.
-- A newer patch attachment rebuilds the same `pg-hub/patch-*` branch, so GitHub
+- A newer patch attachment rebuilds the same `pg-hub/mirror-patch-*` branch, so GitHub
   exposes the patch under **Files changed**.
 - CommitFest status becomes a `status:*` label and the active CommitFest becomes
   a milestone.
