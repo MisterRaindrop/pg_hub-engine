@@ -304,14 +304,16 @@ class PostgresGitSource:
         self.repository.parent.mkdir(parents=True, exist_ok=True)
         if not self.repository.exists():
             self._run(
-                "git", "clone", "--depth=200", "--no-checkout", "--branch",
+                "git", "clone", "--filter=blob:none", "--depth=50",
+                "--single-branch", "--no-checkout", "--branch",
                 self.config.postgres_git_branch,
                 self.config.postgres_git_url, str(self.repository),
             )
         else:
             self._run(
                 "git", "-C", str(self.repository), "fetch", "--quiet",
-                "--depth=200", "origin", self.config.postgres_git_branch,
+                "--filter=blob:none", "--depth=50", "origin",
+                self.config.postgres_git_branch,
             )
         head = self._run(
             "git", "-C", str(self.repository), "rev-parse",

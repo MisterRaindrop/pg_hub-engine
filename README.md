@@ -193,8 +193,10 @@ scheduled runs always use the live sources.
   without blocking the rest of the batch; a later valid revision in the thread
   can still create or update its mirror PR. The previous branch remains available.
 - Patch branches use a depth-1 checkout of the configured GitHub mirror base;
-  postgres.git commit polling keeps only a bounded recent history. The service
-  never needs a full PostgreSQL history clone.
+  postgres.git commit polling keeps only a bounded, blobless recent history.
+  GitHub Actions reads commits from PostgreSQL's official `postgres/postgres`
+  GitHub mirror to avoid stressing the canonical git server. The service never
+  needs a full PostgreSQL history clone.
 - Mirrored comments are authored by the bot and retain the real mail author in
   the comment body. Identity federation is out of scope for V0.
 

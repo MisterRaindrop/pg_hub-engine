@@ -56,6 +56,8 @@ jobs:
           GITHUB_BASE_BRANCH: ${{ vars.PG_HUB_BASE_BRANCH || 'master' }}
           GITHUB_TOKEN: ${{ secrets.PG_HUB_GITHUB_TOKEN }}
           COMMITFEST_ID: ${{ vars.PG_HUB_COMMITFEST_ID || '61' }}
+          POSTGRES_GIT_URL: https://github.com/postgres/postgres.git
+          POSTGRES_GIT_BRANCH: master
           PG_MAIL_LOOKBACK_MINUTES: ${{ vars.PG_HUB_MAIL_LOOKBACK_MINUTES || '60' }}
           PG_MAIL_MAX_MESSAGES: ${{ vars.PG_HUB_MAIL_MAX_MESSAGES || '50' }}
           MAIL_POLL_SECONDS: "600"
