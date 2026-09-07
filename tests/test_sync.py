@@ -7,11 +7,13 @@ import unittest
 from dataclasses import replace
 
 from pg_hub.config import Config
+from pg_hub.errors import PatchSetUnavailableError
 from pg_hub.github import GitHubAuth, PatchPublisher, order_patch_attachments
-from pg_hub.models import Attachment
+from pg_hub.models import Attachment, MailMessage
 from pg_hub.sink import ConsoleSink
 from pg_hub.sources import (
     FixtureSources,
+    FixtureSource,
     PostgresGitSource,
     _ArchiveIndexParser,
     _CommitFestIndexParser,
@@ -155,6 +157,36 @@ class SyncTests(unittest.TestCase):
             [item.name for item in order_patch_attachments(attachments, "REL_18_STABLE")],
             ["v3-PG18-0001-backpatch.patch"],
         )
+
+    def test_unavailable_patch_is_skipped_without_replaying(self) -> None:
+        class UnavailableSink(ConsoleSink):
+            def publish_patchset(self, thread_id, attachments):
+                del thread_id, attachments
+                raise PatchSetUnavailableError("empty attachment")
+
+        message = MailMessage(
+            message_id="empty@example.test",
+            thread_id="empty@example.test",
+            subject="[PATCH] Empty archive attachment",
+            author="Alice",
+            sent_at="2026-09-07T00:00:00+00:00",
+            body="The archive advertised a patch but returned zero bytes.",
+            archive_url="https://example.test/message/empty",
+            attachments=(
+                Attachment(name="v1-0001-empty.patch", url="https://example.test/empty"),
+            ),
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            store = StateStore(Path(temp) / "state.db")
+            source = FixtureSource("mail-test", (message,))
+            sink = UnavailableSink(verbose=False)
+            engine = SyncEngine(store, sink)
+            first = engine.sync_mail(source)
+            second = engine.sync_mail(source)
+            self.assertEqual(first.mail_skipped, 1)
+            self.assertEqual(second.mail_skipped, 0)
+            self.assertEqual(second.changed, 0)
+            store.close()
 
     def test_git_source_uses_commit_hash_cursor(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

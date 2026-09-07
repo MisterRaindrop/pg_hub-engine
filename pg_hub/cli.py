@@ -76,6 +76,7 @@ def _print_report(report: SyncReport) -> None:
     print(
         "summary            "
         f"mail={report.mail_changed}/{report.mail_seen} "
+        f"mail_skipped={report.mail_skipped} "
         f"commitfest={report.commitfest_changed}/{report.commitfest_seen} "
         f"git={report.git_changed}/{report.git_seen} changed={report.changed}"
     )

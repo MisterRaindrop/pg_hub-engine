@@ -189,8 +189,9 @@ scheduled runs always use the live sources.
 - CommitFest entries are matched to known mail threads by explicit thread id in
   fixtures, stored patch mapping, or a conservative normalized-title match.
 - Patch application tries `git am --3way`, then a plain indexed `git apply`.
-  Conflicting or base-incompatible patchsets fail visibly and are retried; the
-  previous mirror branch remains available.
+  Empty, conflicting, or base-incompatible attachments are reported and skipped
+  without blocking the rest of the batch; a later valid revision in the thread
+  can still create or update its mirror PR. The previous branch remains available.
 - Patch branches use a depth-1 checkout of the configured GitHub mirror base;
   postgres.git commit polling keeps only a bounded recent history. The service
   never needs a full PostgreSQL history clone.

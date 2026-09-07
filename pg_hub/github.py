@@ -16,6 +16,7 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from .config import Config
+from .errors import PatchSetUnavailableError
 from .labels import definition
 from .models import Attachment
 
@@ -326,7 +327,12 @@ class PatchPublisher:
                 headers={"User-Agent": "pg_hub/0.1"},
             )
             with urlopen(request, timeout=60) as response:
-                path.write_bytes(response.read())
+                content = response.read()
+            if not content:
+                raise PatchSetUnavailableError(
+                    f"PostgreSQL archive returned an empty attachment: {attachment.name}"
+                )
+            path.write_bytes(content)
             paths.append(path)
         return paths
 
@@ -354,7 +360,7 @@ class PatchPublisher:
             try:
                 self._run("git", "-C", str(worktree), "apply", "--index", str(patch))
             except RuntimeError as error:
-                raise RuntimeError(
+                raise PatchSetUnavailableError(
                     f"could not apply patch attachment {patch.name}: {error}"
                 ) from error
         self._run(

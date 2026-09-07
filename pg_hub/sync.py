@@ -5,6 +5,7 @@ import hashlib
 import re
 from typing import Any, Iterable, Protocol
 
+from .errors import PatchSetUnavailableError
 from .labels import STATUS_LABELS, commitfest_tag_labels, status_label, subsystem_labels
 from .models import Attachment, CommitFestEntry, GitCommit, MailMessage, PollBatch, stable_fingerprint
 from .state import StateStore, ThreadMirror
@@ -29,6 +30,7 @@ class Sink(Protocol):
 class SyncReport:
     mail_seen: int = 0
     mail_changed: int = 0
+    mail_skipped: int = 0
     commitfest_seen: int = 0
     commitfest_changed: int = 0
     git_seen: int = 0
@@ -60,7 +62,16 @@ class SyncEngine:
                 raise TypeError("mail source returned a non-mail item")
             if self.state.event_is_current("mail", item.message_id, item.fingerprint):
                 continue
-            changed = self._sync_message(item)
+            try:
+                changed = self._sync_message(item)
+            except PatchSetUnavailableError as error:
+                print(
+                    "skip mail patch   "
+                    f"message_id={item.message_id} reason={error}"
+                )
+                self.state.record_event("mail", item.message_id, item.fingerprint)
+                report.mail_skipped += 1
+                continue
             self.state.record_event("mail", item.message_id, item.fingerprint)
             report.mail_changed += int(changed)
         self.state.set_cursor(source.name, batch.cursor)
