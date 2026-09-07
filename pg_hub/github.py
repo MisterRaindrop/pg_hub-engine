@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 from typing import Any, Iterable
@@ -17,6 +18,38 @@ from urllib.request import Request, urlopen
 from .config import Config
 from .labels import definition
 from .models import Attachment
+
+
+_PATCH_SEQUENCE = re.compile(r"(?:^|[-_])(\d{4})(?=[-_])")
+_POSTGRES_TARGET = re.compile(r"(?:^|[-_])PG(\d+)(?=[-_])", re.I)
+
+
+def order_patch_attachments(
+    attachments: tuple[Attachment, ...], base_branch: str
+) -> tuple[Attachment, ...]:
+    """Choose the target-specific series and order it by patch number."""
+    branch_major = re.search(r"(?:REL_|PG)?(\d+)", base_branch, re.I)
+    target_major = branch_major.group(1) if branch_major else None
+
+    tagged: list[tuple[Attachment, str | None]] = []
+    for attachment in attachments:
+        match = _POSTGRES_TARGET.search(attachment.name)
+        tagged.append((attachment, match.group(1) if match else None))
+
+    if target_major:
+        selected = [item for item, major in tagged if major == target_major]
+    else:
+        # PostgreSQL's master branch normally ships beside PG17/PG18 backpatch
+        # variants without an explicit PG target in its filename.
+        selected = [item for item, major in tagged if major is None]
+    if not selected:
+        selected = [item for item, _ in tagged]
+
+    def key(item: Attachment) -> tuple[int, str]:
+        match = _PATCH_SEQUENCE.search(item.name)
+        return (int(match.group(1)) if match else 10_000, item.name.lower())
+
+    return tuple(sorted(selected, key=key))
 
 
 def _b64url(value: bytes) -> str:
@@ -250,7 +283,10 @@ class PatchPublisher:
             )
             try:
                 self._run("git", "-C", str(worktree), "switch", "-C", branch)
-                patches = self._download_patches(attachments, temp_path)
+                patches = self._download_patches(
+                    order_patch_attachments(attachments, self.config.github_base_branch),
+                    temp_path,
+                )
                 self._apply_patchset(worktree, patches)
                 self._push(worktree, branch)
             finally:
@@ -281,7 +317,7 @@ class PatchPublisher:
         attachments: tuple[Attachment, ...], destination: Path
     ) -> list[Path]:
         paths: list[Path] = []
-        for index, attachment in enumerate(sorted(attachments, key=lambda item: item.name)):
+        for index, attachment in enumerate(attachments):
             safe_name = Path(attachment.name).name
             path = destination / f"{index:04d}-{safe_name}"
             request = Request(
@@ -315,7 +351,12 @@ class PatchPublisher:
             check=False,
         )
         for patch in patches:
-            self._run("git", "-C", str(worktree), "apply", "--index", str(patch))
+            try:
+                self._run("git", "-C", str(worktree), "apply", "--index", str(patch))
+            except RuntimeError as error:
+                raise RuntimeError(
+                    f"could not apply patch attachment {patch.name}: {error}"
+                ) from error
         self._run(
             "git", "-C", str(worktree),
             "-c", "user.name=pg_hub",

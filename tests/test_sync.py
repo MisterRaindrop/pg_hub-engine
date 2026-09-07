@@ -7,7 +7,8 @@ import unittest
 from dataclasses import replace
 
 from pg_hub.config import Config
-from pg_hub.github import GitHubAuth, PatchPublisher
+from pg_hub.github import GitHubAuth, PatchPublisher, order_patch_attachments
+from pg_hub.models import Attachment
 from pg_hub.sink import ConsoleSink
 from pg_hub.sources import (
     FixtureSources,
@@ -135,6 +136,25 @@ class SyncTests(unittest.TestCase):
                 check=True,
             )
             self.assertEqual(count.stdout.strip(), "2")
+
+    def test_patch_series_is_ordered_and_selects_master_variant(self) -> None:
+        attachments = tuple(
+            Attachment(name=name, url=f"https://example.test/{name}")
+            for name in (
+                "0002-follow-up.patch",
+                "v3-PG17-0001-backpatch.patch",
+                "v3-PG18-0001-backpatch.patch",
+                "v3-0001-main.patch",
+            )
+        )
+        self.assertEqual(
+            [item.name for item in order_patch_attachments(attachments, "master")],
+            ["v3-0001-main.patch", "0002-follow-up.patch"],
+        )
+        self.assertEqual(
+            [item.name for item in order_patch_attachments(attachments, "REL_18_STABLE")],
+            ["v3-PG18-0001-backpatch.patch"],
+        )
 
     def test_git_source_uses_commit_hash_cursor(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
