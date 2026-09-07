@@ -1,7 +1,7 @@
-# pg_hub
+# PostgreSQL Development Mirror for GitHub
 
-**PG Hub — PostgreSQL Development Mirror** turns PostgreSQL's mailing-list
-workflow into a GitHub-native, read-only view.
+**pg_hub** is an unofficial, read-only GitHub dashboard for PostgreSQL
+development activity.
 
 It reads development activity from
 [pgsql-hackers](https://www.postgresql.org/list/pgsql-hackers/),
@@ -142,7 +142,7 @@ repository names as write targets.
 Set these values in `.env`:
 
 ```dotenv
-GITHUB_TARGET_REPOSITORY=your-org/pg_hub
+GITHUB_TARGET_REPOSITORY=your-org/postgresql-github-mirror
 GITHUB_BASE_BRANCH=master
 GITHUB_TOKEN=short_lived_installation_token
 ```
@@ -215,8 +215,8 @@ scheduled runs always use the live sources.
 
 ## Repository roles
 
-- `MisterRaindrop/pg_hub` is the public PostgreSQL experience: Code, Issues,
-  Pull requests, and Discussions.
+- `MisterRaindrop/postgresql-github-mirror` is the public, read-only PostgreSQL
+  development dashboard: Code, Issues, Pull requests, and Discussions.
 - `MisterRaindrop/pg_hub-engine` contains this synchronizer and its scheduled
   GitHub Actions workflow.
 
