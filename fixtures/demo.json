@@ -11,7 +11,7 @@
       "attachments": [
         {
           "name": "v1-0001-async-buffer-prefetch.patch",
-          "url": "https://github.com/MisterRaindrop/pg_hub/blob/main/fixtures/v1-0001-async-buffer-prefetch.patch",
+          "url": "https://github.com/MisterRaindrop/pg_hub-engine/blob/main/fixtures/v1-0001-async-buffer-prefetch.patch",
           "download_url": "fixture://v1-0001-async-buffer-prefetch.patch",
           "content_type": "text/x-patch",
           "size": "712 bytes"
@@ -41,7 +41,7 @@
       "attachments": [
         {
           "name": "v2-0001-async-buffer-prefetch.patch",
-          "url": "https://github.com/MisterRaindrop/pg_hub/blob/main/fixtures/v2-0001-async-buffer-prefetch.patch",
+          "url": "https://github.com/MisterRaindrop/pg_hub-engine/blob/main/fixtures/v2-0001-async-buffer-prefetch.patch",
           "download_url": "fixture://v2-0001-async-buffer-prefetch.patch",
           "content_type": "text/x-patch",
           "size": "884 bytes"

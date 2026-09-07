@@ -163,6 +163,14 @@ class GitHubClient:
             raise RuntimeError(f"GitHub API {method} {path} failed ({error.code}): {detail}") from error
         return json.loads(raw) if raw else None
 
+    def graphql(self, query: str, variables: dict[str, Any]) -> dict[str, Any]:
+        document = self.request(
+            "POST", "graphql", {"query": query, "variables": variables}
+        )
+        if document.get("errors"):
+            raise RuntimeError(f"GitHub GraphQL failed: {document['errors']}")
+        return dict(document["data"])
+
     def ensure_label(self, name: str) -> None:
         color, description = definition(name)
         encoded = quote(name, safe="")
@@ -181,7 +189,7 @@ class GitHubClient:
         owner = self.config.github_repository.split("/", 1)[0]
         pulls = self.request(
             "GET",
-            f"{self.repo_path}/pulls?state=all&head={quote(owner + ':' + branch)}&per_page=10",
+            f"{self.repo_path}/pulls?state=open&head={quote(owner + ':' + branch)}&per_page=10",
         )
         if pulls:
             number = int(pulls[0]["number"])
@@ -203,6 +211,81 @@ class GitHubClient:
         )
         return int(created["number"])
 
+    def ensure_issue(self, title: str, body: str, marker: str) -> int:
+        issues = self.request("GET", f"{self.repo_path}/issues?state=all&per_page=100")
+        for issue in issues:
+            if "pull_request" in issue or marker not in str(issue.get("body", "")):
+                continue
+            number = int(issue["number"])
+            self.request(
+                "PATCH", f"{self.repo_path}/issues/{number}",
+                {"title": title, "body": body, "state": "open"},
+            )
+            return number
+        created = self.request(
+            "POST", f"{self.repo_path}/issues", {"title": title, "body": body}
+        )
+        return int(created["number"])
+
+    def _discussion_repository(self) -> dict[str, Any]:
+        owner, name = self.config.github_repository.split("/", 1)
+        data = self.graphql(
+            """
+            query($owner: String!, $name: String!) {
+              repository(owner: $owner, name: $name) {
+                id
+                discussionCategories(first: 25) { nodes { id name slug } }
+                discussions(first: 100) { nodes { id number title body } }
+              }
+            }
+            """,
+            {"owner": owner, "name": name},
+        )
+        return dict(data["repository"])
+
+    def ensure_discussion(self, title: str, body: str, marker: str) -> int:
+        repository = self._discussion_repository()
+        for discussion in repository["discussions"]["nodes"]:
+            if marker not in str(discussion.get("body", "")):
+                continue
+            self.graphql(
+                """
+                mutation($id: ID!, $title: String!, $body: String!) {
+                  updateDiscussion(input: {discussionId: $id, title: $title, body: $body}) {
+                    discussion { number }
+                  }
+                }
+                """,
+                {"id": discussion["id"], "title": title, "body": body},
+            )
+            return int(discussion["number"])
+        categories = repository["discussionCategories"]["nodes"]
+        category = next(
+            (item for item in categories if item["slug"] == "announcements"),
+            categories[0] if categories else None,
+        )
+        if category is None:
+            raise RuntimeError("GitHub Discussions has no available category")
+        data = self.graphql(
+            """
+            mutation($repositoryId: ID!, $categoryId: ID!, $title: String!, $body: String!) {
+              createDiscussion(input: {
+                repositoryId: $repositoryId,
+                categoryId: $categoryId,
+                title: $title,
+                body: $body
+              }) { discussion { number } }
+            }
+            """,
+            {
+                "repositoryId": repository["id"],
+                "categoryId": category["id"],
+                "title": title,
+                "body": body,
+            },
+        )
+        return int(data["createDiscussion"]["discussion"]["number"])
+
     def add_comment(self, pr_number: int, body: str, marker: str) -> None:
         comments = self.request(
             "GET", f"{self.repo_path}/issues/{pr_number}/comments?per_page=100"
@@ -220,6 +303,89 @@ class GitHubClient:
             return
         self.request(
             "POST", f"{self.repo_path}/issues/{pr_number}/comments", {"body": body}
+        )
+
+    def _discussion(self, number: int, include_comments: bool = False) -> dict[str, Any]:
+        owner, name = self.config.github_repository.split("/", 1)
+        comments = "comments(first: 100) { nodes { id body } }" if include_comments else ""
+        data = self.graphql(
+            f"""
+            query($owner: String!, $name: String!, $number: Int!) {{
+              repository(owner: $owner, name: $name) {{
+                discussion(number: $number) {{ id number {comments} }}
+              }}
+            }}
+            """,
+            {"owner": owner, "name": name, "number": number},
+        )
+        discussion = data["repository"]["discussion"]
+        if discussion is None:
+            raise RuntimeError(f"GitHub discussion #{number} was not found")
+        return dict(discussion)
+
+    def add_discussion_comment(self, number: int, body: str, marker: str) -> None:
+        discussion = self._discussion(number, include_comments=True)
+        for comment in discussion["comments"]["nodes"]:
+            existing_body = str(comment.get("body", ""))
+            if marker not in existing_body:
+                continue
+            if existing_body != body:
+                self.graphql(
+                    """
+                    mutation($id: ID!, $body: String!) {
+                      updateDiscussionComment(input: {commentId: $id, body: $body}) {
+                        comment { id }
+                      }
+                    }
+                    """,
+                    {"id": comment["id"], "body": body},
+                )
+            return
+        self.graphql(
+            """
+            mutation($discussionId: ID!, $body: String!) {
+              addDiscussionComment(input: {discussionId: $discussionId, body: $body}) {
+                comment { id }
+              }
+            }
+            """,
+            {"discussionId": discussion["id"], "body": body},
+        )
+
+    def lock(self, kind: str, number: int) -> None:
+        if kind in {"pr", "issue"}:
+            self.request("PUT", f"{self.repo_path}/issues/{number}/lock", {})
+            return
+        discussion = self._discussion(number)
+        self.graphql(
+            """
+            mutation($id: ID!) {
+              lockLockable(input: {lockableId: $id}) { lockedRecord { locked } }
+            }
+            """,
+            {"id": discussion["id"]},
+        )
+
+    def link_discussion_pr(
+        self, discussion_number: int, pr_number: int, marker: str
+    ) -> None:
+        repository_url = f"https://github.com/{self.config.github_repository}"
+        self.add_comment(
+            pr_number,
+            (
+                f"Earlier design discussion: [Discussion #{discussion_number}]"
+                f"({repository_url}/discussions/{discussion_number})\n\n{marker}"
+            ),
+            marker,
+        )
+        discussion_marker = marker.replace("=", "-discussion=", 1)
+        self.add_discussion_comment(
+            discussion_number,
+            (
+                f"A patch is now available as [PR #{pr_number}]"
+                f"({repository_url}/pull/{pr_number}).\n\n{discussion_marker}"
+            ),
+            discussion_marker,
         )
 
     def sync_labels(self, pr_number: int, labels: Iterable[str]) -> None:
@@ -423,11 +589,26 @@ class GitHubSink:
     def ensure_pr(self, title: str, body: str, branch: str) -> int:
         return self.client.ensure_pull_request(title, body, branch)
 
+    def ensure_issue(self, title: str, body: str, marker: str) -> int:
+        return self.client.ensure_issue(title, body, marker)
+
+    def ensure_discussion(self, title: str, body: str, marker: str) -> int:
+        return self.client.ensure_discussion(title, body, marker)
+
     def comment(self, pr_number: int, body: str, marker: str) -> None:
         self.client.add_comment(pr_number, body, marker)
+
+    def discussion_comment(self, number: int, body: str, marker: str) -> None:
+        self.client.add_discussion_comment(number, body, marker)
 
     def labels(self, pr_number: int, labels: Iterable[str]) -> None:
         self.client.sync_labels(pr_number, labels)
 
     def milestone(self, pr_number: int, title: str) -> None:
         self.client.set_milestone(pr_number, title)
+
+    def lock(self, kind: str, number: int) -> None:
+        self.client.lock(kind, number)
+
+    def link_discussion_pr(self, discussion_number: int, pr_number: int, marker: str) -> None:
+        self.client.link_discussion_pr(discussion_number, pr_number, marker)

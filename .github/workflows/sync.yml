@@ -33,6 +33,15 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Mint short-lived pg_hub Bot token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.PG_HUB_APP_ID }}
+          private-key: ${{ secrets.PG_HUB_APP_PRIVATE_KEY }}
+          owner: MisterRaindrop
+          repositories: pg_hub
+
       - name: Restore PostgreSQL git cache
         uses: actions/cache@v6
         with:
@@ -43,9 +52,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: .pg_hub/state.db
-          key: pg-hub-state-${{ github.run_id }}
+          key: pg-hub-state-v2-${{ github.run_id }}
           restore-keys: |
-            pg-hub-state-
+            pg-hub-state-v2-
 
       - name: Validate configuration
         run: python -m pg_hub doctor
@@ -54,7 +63,7 @@ jobs:
           PG_HUB_CACHE: .pg_hub/cache
           GITHUB_TARGET_REPOSITORY: ${{ vars.PG_HUB_TARGET_REPOSITORY }}
           GITHUB_BASE_BRANCH: ${{ vars.PG_HUB_BASE_BRANCH || 'master' }}
-          GITHUB_TOKEN: ${{ secrets.PG_HUB_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           COMMITFEST_ID: ${{ vars.PG_HUB_COMMITFEST_ID || '61' }}
           POSTGRES_GIT_URL: https://github.com/postgres/postgres.git
           POSTGRES_GIT_BRANCH: master

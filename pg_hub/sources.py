@@ -195,10 +195,15 @@ class _CommitFestIndexParser(HTMLParser):
 
 
 class PostgresArchiveSource:
-    name = "mail"
-
-    def __init__(self, config: Config):
+    def __init__(
+        self,
+        config: Config,
+        mailing_list: str | None = None,
+        name: str = "mail",
+    ):
         self.config = config
+        self.mailing_list = mailing_list or config.mailing_list
+        self.name = name
 
     def poll(self, cursor: str | None) -> PollBatch:
         if cursor:
@@ -217,7 +222,7 @@ class PostgresArchiveSource:
         stamp = start.strftime("%Y%m%d%H%M")
         index_url = (
             f"{self.config.archive_base_url}/list/"
-            f"{quote(self.config.mailing_list)}/since/{stamp}/"
+            f"{quote(self.mailing_list)}/since/{stamp}/"
         )
         parser = _ArchiveIndexParser()
         parser.feed(http_get(index_url).decode("utf-8", errors="replace"))
@@ -239,6 +244,7 @@ class PostgresArchiveSource:
             sent_at=self._parse_date(parser.headers.get("Date", "")).isoformat(),
             body=parser.body,
             archive_url=url,
+            mailing_list=self.mailing_list,
             attachments=tuple(parser.attachments),
         )
 
@@ -367,6 +373,7 @@ class PostgresGitSource:
 @dataclass
 class FixtureSources:
     mail: "FixtureSource"
+    bugs: "FixtureSource"
     commitfest: "FixtureSource"
     git: "FixtureSource"
 
@@ -374,10 +381,12 @@ class FixtureSources:
     def load(cls, path: Path) -> "FixtureSources":
         document = json.loads(path.read_text(encoding="utf-8"))
         mail = tuple(_mail_from_json(item, path.parent) for item in document["mail"])
+        bugs = tuple(_mail_from_json(item, path.parent) for item in document.get("bugs", []))
         commitfest = tuple(CommitFestEntry(**_tuple_fields(item, "tags")) for item in document["commitfest"])
         git = tuple(GitCommit(**item) for item in document["git"])
         return cls(
             mail=FixtureSource("fixture-mail", mail),
+            bugs=FixtureSource("fixture-bugs", bugs),
             commitfest=FixtureSource("fixture-commitfest", commitfest),
             git=FixtureSource("fixture-git", git),
         )

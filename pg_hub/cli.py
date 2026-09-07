@@ -48,7 +48,9 @@ def parser() -> argparse.ArgumentParser:
     sync = commands.add_parser("sync", help="run one incremental sync")
     sync.add_argument("--source", choices=("live", "fixture"), default="live")
     sync.add_argument("--sink", choices=("console", "github"), default="console")
-    sync.add_argument("--only", choices=("all", "mail", "commitfest", "git"), default="all")
+    sync.add_argument(
+        "--only", choices=("all", "mail", "bugs", "commitfest", "git"), default="all"
+    )
     sync.add_argument("--fixture", type=Path, default=DEFAULT_FIXTURE)
 
     schedule = commands.add_parser("scheduler", help="run the 10/10/15 minute polling loop")
@@ -62,7 +64,8 @@ def _sources(config: Config, kind: str, fixture: Path = DEFAULT_FIXTURE):
     if kind == "fixture":
         return FixtureSources.load(fixture)
     return FixtureSources(
-        mail=PostgresArchiveSource(config),
+        mail=PostgresArchiveSource(config, name="mail"),
+        bugs=PostgresArchiveSource(config, mailing_list="pgsql-bugs", name="bugs"),
         commitfest=CommitFestSource(config),
         git=PostgresGitSource(config),
     )
@@ -77,6 +80,7 @@ def _print_report(report: SyncReport) -> None:
         "summary            "
         f"mail={report.mail_changed}/{report.mail_seen} "
         f"mail_skipped={report.mail_skipped} "
+        f"bugs={report.bugs_changed}/{report.bugs_seen} "
         f"commitfest={report.commitfest_changed}/{report.commitfest_seen} "
         f"git={report.git_changed}/{report.git_seen} changed={report.changed}"
     )
@@ -84,9 +88,11 @@ def _print_report(report: SyncReport) -> None:
 
 def _run_selected(engine: SyncEngine, sources, selected: str) -> SyncReport:
     if selected == "all":
-        return engine.sync_all(sources.mail, sources.commitfest, sources.git)
+        return engine.sync_all(sources.mail, sources.commitfest, sources.git, sources.bugs)
     if selected == "mail":
         return engine.sync_mail(sources.mail)
+    if selected == "bugs":
+        return engine.sync_bugs(sources.bugs)
     if selected == "commitfest":
         return engine.sync_commitfest(sources.commitfest)
     return engine.sync_git(sources.git)
@@ -101,10 +107,14 @@ def run_demo(args: argparse.Namespace) -> int:
     try:
         print("pg_hub demo — local GitHub simulation")
         engine = SyncEngine(state, ConsoleSink())
-        _print_report(engine.sync_all(sources.mail, sources.commitfest, sources.git))
+        _print_report(
+            engine.sync_all(sources.mail, sources.commitfest, sources.git, sources.bugs)
+        )
         if args.twice:
             print("\nsecond pass — idempotency check")
-            _print_report(engine.sync_all(sources.mail, sources.commitfest, sources.git))
+            _print_report(
+                engine.sync_all(sources.mail, sources.commitfest, sources.git, sources.bugs)
+            )
     finally:
         state.close()
     return 0
@@ -129,6 +139,7 @@ def run_scheduler(args: argparse.Namespace) -> int:
     engine = SyncEngine(state, _sink(config, args.sink))
     intervals = {
         "mail": config.mail_poll_seconds,
+        "bugs": config.mail_poll_seconds,
         "commitfest": config.commitfest_poll_seconds,
         "git": config.git_poll_seconds,
     }

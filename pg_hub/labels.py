@@ -6,7 +6,9 @@ from typing import Iterable
 
 LABEL_DEFINITIONS: dict[str, tuple[str, str]] = {
     "source:pgsql-hackers": ("0052cc", "Mirrored from pgsql-hackers"),
+    "source:pgsql-bugs": ("b60205", "Mirrored from pgsql-bugs"),
     "type:patch": ("5319e7", "Mail thread contains a PostgreSQL patch"),
+    "type:bug": ("d73a4a", "PostgreSQL bug report"),
     "upstream:committed": ("1f883d", "A matching PostgreSQL git commit was observed"),
     "status:needs-review": ("d4c5f9", "CommitFest: Needs review"),
     "status:waiting-on-author": ("fbca04", "CommitFest: Waiting on Author"),

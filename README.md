@@ -5,6 +5,7 @@ workflow into a GitHub-native, read-only view.
 
 It reads development activity from
 [pgsql-hackers](https://www.postgresql.org/list/pgsql-hackers/),
+[pgsql-bugs](https://www.postgresql.org/list/pgsql-bugs/),
 [PostgreSQL CommitFest](https://commitfest.postgresql.org/), and
 [postgres.git](https://git.postgresql.org/gitweb/?p=postgresql.git;a=summary).
 It writes only to a GitHub repository you control. There is no code path that
@@ -16,6 +17,8 @@ posts mail, edits CommitFest, or pushes to PostgreSQL upstream.
 ## What the demo does
 
 - A `[PATCH]` email thread with a `.patch`/`.diff` attachment becomes one PR.
+- A pgsql-hackers thread without a patch becomes a Discussion.
+- A pgsql-bugs thread becomes an Issue.
 - Later messages in that thread become attributed PR comments.
 - A newer patch attachment rebuilds the same `pg-hub/patch-*` branch, so GitHub
   exposes the patch under **Files changed**.
@@ -24,6 +27,10 @@ posts mail, edits CommitFest, or pushes to PostgreSQL upstream.
 - Simple keyword rules add subsystem labels such as `area:storage`, `area:wal`,
   `area:replication`, `area:vacuum`, `area:planner`, and `area:executor`.
 - Every PR and comment links back to the original PostgreSQL email.
+- Mirrored PRs, Issues, and Discussions are locked. The Bot can append upstream
+  mail while ordinary GitHub activity is not accepted by the read-only mirror.
+- If a design Discussion later gains a patch, the Discussion and PR link to
+  each other.
 - A matching postgres.git commit adds `upstream:committed` and an informational
   comment. The mirror deliberately does not merge or close the PR.
 
@@ -60,7 +67,7 @@ make doctor
 ## Data flow
 
 ```text
-pgsql-hackers incremental archive
+pgsql-hackers / pgsql-bugs incremental archives
   Message-ID + thread root + attachment URL
                   │
 CommitFest snapshot ── patch id + status + tags
@@ -72,7 +79,7 @@ postgres.git ───────── commit hash
                   │
                   ▼
      user-controlled PostgreSQL mirror
-       PR + comments + branch + labels
+       Issues + PRs + Discussions + comments
 ```
 
 The SQLite state file is not merely a cache. It stores:
@@ -82,6 +89,7 @@ The SQLite state file is not merely a cache. It stores:
 - one fingerprint per CommitFest patch id;
 - one record per postgres.git commit hash;
 - the thread → PR/branch and CommitFest patch → thread mappings.
+- the mail thread → Issue/Discussion mappings.
 
 Source cursors overlap slightly on every mail poll; stable IDs make that safe.
 GitHub PR branches and hidden comment markers provide a second idempotency layer
@@ -106,6 +114,7 @@ python3 -m pg_hub scheduler --sink console
 | Source | Default interval | Incremental key |
 | --- | ---: | --- |
 | pgsql-hackers | 10 minutes | Message-ID + time cursor |
+| pgsql-bugs | 10 minutes | Message-ID + time cursor |
 | CommitFest | 10 minutes | patch id + content fingerprint |
 | postgres.git | 15 minutes | commit hash |
 
@@ -119,6 +128,7 @@ Useful one-source checks:
 
 ```bash
 python3 -m pg_hub sync --source live --sink console --only mail
+python3 -m pg_hub sync --source live --sink console --only bugs
 python3 -m pg_hub sync --source live --sink console --only commitfest
 python3 -m pg_hub sync --source live --sink console --only git
 ```
@@ -132,9 +142,9 @@ repository names as write targets.
 Set these values in `.env`:
 
 ```dotenv
-GITHUB_TARGET_REPOSITORY=your-org/postgresql-mirror
+GITHUB_TARGET_REPOSITORY=your-org/pg_hub
 GITHUB_BASE_BRANCH=master
-GITHUB_TOKEN=github_pat_or_installation_token
+GITHUB_TOKEN=short_lived_installation_token
 ```
 
 Then validate before allowing writes:
@@ -144,9 +154,10 @@ python3 -m pg_hub doctor
 python3 -m pg_hub sync --source live --sink github
 ```
 
-For a classic/fine-grained PAT, grant only the target repository permissions
-needed for contents/branches, pull requests, issues, and metadata. A GitHub App
-can either supply an installation token through `GITHUB_TOKEN`, or let pg_hub
+Use a GitHub App installation token so GitHub attributes PRs and comments to
+`your-app[bot]`, not to a maintainer. The App needs read/write access to
+Contents, Pull requests, Issues, and Discussions, plus read-only Metadata. A
+GitHub App can either supply an installation token through `GITHUB_TOKEN`, or let pg_hub
 exchange one from:
 
 ```dotenv
@@ -166,7 +177,8 @@ The workflow in `.github/workflows/sync.yml` expects:
 - optional variables `PG_HUB_BASE_BRANCH` and `PG_HUB_COMMITFEST_ID`;
 - optional bootstrap bounds `PG_HUB_MAIL_LOOKBACK_MINUTES` and
   `PG_HUB_MAIL_MAX_MESSAGES` (the workflow defaults to 60 minutes / 50 mails);
-- secret `PG_HUB_GITHUB_TOKEN` scoped to the target mirror.
+- repository variable `PG_HUB_APP_ID`;
+- secret `PG_HUB_APP_PRIVATE_KEY` containing the App's PEM private key;
 - repository variable `PG_HUB_ENABLED=true` only after a manual fixture run
   succeeds; without it, scheduled jobs remain safely disabled.
 
@@ -174,7 +186,8 @@ It restores and saves `.pg_hub/state.db` through the Actions cache. For a real
 deployment, a persistent volume and backed-up SQLite file are more predictable
 than an Actions cache.
 
-After adding the token, use **Actions → pg_hub read-only mirror → Run workflow**
+After installing the App on the target repository, use
+**Actions → pg_hub read-only mirror → Run workflow**
 and keep the default `fixture` source. This creates one controlled demonstration
 PR in the mirror. Only after that succeeds should `PG_HUB_ENABLED=true` be set;
 scheduled runs always use the live sources.
@@ -184,7 +197,7 @@ scheduled runs always use the live sources.
 - The official archive and CommitFest sites expose HTML rather than a versioned
   public API here. Their parsers are intentionally isolated and covered by
   contract-style tests, but markup changes will require adapter updates.
-- Initial mail bootstrap is bounded by `PG_MAIL_LOOKBACK_MINUTES` and
+- Initial mail bootstrap for each list is bounded by `PG_MAIL_LOOKBACK_MINUTES` and
   `PG_MAIL_MAX_MESSAGES`; this prevents accidentally opening hundreds of PRs.
 - CommitFest entries are matched to known mail threads by explicit thread id in
   fixtures, stored patch mapping, or a conservative normalized-title match.
@@ -199,6 +212,13 @@ scheduled runs always use the live sources.
   needs a full PostgreSQL history clone.
 - Mirrored comments are authored by the bot and retain the real mail author in
   the comment body. Identity federation is out of scope for V0.
+
+## Repository roles
+
+- `MisterRaindrop/pg_hub` is the public PostgreSQL experience: Code, Issues,
+  Pull requests, and Discussions.
+- `MisterRaindrop/pg_hub-engine` contains this synchronizer and its scheduled
+  GitHub Actions workflow.
 
 ## Repository layout
 

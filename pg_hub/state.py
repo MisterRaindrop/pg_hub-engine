@@ -17,6 +17,14 @@ class ThreadMirror:
     latest_patch_fingerprint: str
 
 
+@dataclass(frozen=True)
+class ConversationMirror:
+    thread_id: str
+    kind: str
+    number: int
+    title: str
+
+
 def normalize_title(value: str) -> str:
     value = re.sub(r"^(?:\s*(?:re|fwd?)\s*:\s*)+", "", value, flags=re.I)
     value = re.sub(r"\[(?:patch|rfc)(?:\s+v?\d+)?[^]]*\]", "", value, flags=re.I)
@@ -67,6 +75,14 @@ class StateStore:
                 thread_id TEXT NOT NULL,
                 label TEXT NOT NULL,
                 PRIMARY KEY (thread_id, label)
+            );
+            CREATE TABLE IF NOT EXISTS conversation_mirrors (
+                thread_id TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                number INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                normalized_title TEXT NOT NULL,
+                PRIMARY KEY (thread_id, kind)
             );
             """
         )
@@ -174,6 +190,39 @@ class StateStore:
             if score >= 0.72 and (best is None or score > best[0]):
                 best = (score, candidate)
         return self._thread_from_row(best[1]) if best else None
+
+    def conversation(self, thread_id: str, kind: str) -> ConversationMirror | None:
+        row = self.connection.execute(
+            "SELECT * FROM conversation_mirrors WHERE thread_id=? AND kind=?",
+            (thread_id, kind),
+        ).fetchone()
+        if row is None:
+            return None
+        return ConversationMirror(
+            thread_id=str(row["thread_id"]),
+            kind=str(row["kind"]),
+            number=int(row["number"]),
+            title=str(row["title"]),
+        )
+
+    def save_conversation(self, mirror: ConversationMirror) -> None:
+        self.connection.execute(
+            """INSERT INTO conversation_mirrors(
+                   thread_id, kind, number, title, normalized_title
+               ) VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(thread_id, kind) DO UPDATE SET
+                 number=excluded.number,
+                 title=excluded.title,
+                 normalized_title=excluded.normalized_title""",
+            (
+                mirror.thread_id,
+                mirror.kind,
+                mirror.number,
+                mirror.title,
+                normalize_title(mirror.title),
+            ),
+        )
+        self.connection.commit()
 
     def link_commitfest(self, patch_id: str, thread_id: str) -> None:
         self.connection.execute(

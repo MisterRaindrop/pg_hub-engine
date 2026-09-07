@@ -188,6 +188,96 @@ class SyncTests(unittest.TestCase):
             self.assertEqual(second.changed, 0)
             store.close()
 
+    def test_non_patch_hackers_thread_becomes_locked_discussion(self) -> None:
+        root = MailMessage(
+            message_id="design@example.test",
+            thread_id="design@example.test",
+            subject="Proposal: improve planner diagnostics",
+            author="Alice",
+            sent_at="2026-09-07T00:00:00+00:00",
+            body="I would like to discuss planner diagnostics.",
+            archive_url="https://example.test/message/design",
+        )
+        reply = replace(
+            root,
+            message_id="reply@example.test",
+            subject="Re: Proposal: improve planner diagnostics",
+            author="Bob",
+            body="Here is some feedback.",
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            store = StateStore(Path(temp) / "state.db")
+            sink = ConsoleSink(verbose=False)
+            engine = SyncEngine(store, sink)
+            report = engine.sync_mail(FixtureSource("discussion-test", (root, reply)))
+            self.assertEqual(report.mail_changed, 2)
+            mirror = store.conversation(root.thread_id, "discussion")
+            self.assertIsNotNone(mirror)
+            actions = [name for name, _ in sink.actions]
+            self.assertIn("open discussion", actions)
+            self.assertIn("discussion reply", actions)
+            self.assertIn("lock conversation", actions)
+            store.close()
+
+    def test_pgsql_bugs_thread_becomes_locked_issue(self) -> None:
+        bug = MailMessage(
+            message_id="bug@example.test",
+            thread_id="bug@example.test",
+            subject="BUG #19000: server crash",
+            author="Reporter",
+            sent_at="2026-09-07T00:00:00+00:00",
+            body="The server crashed while running SQL.",
+            archive_url="https://example.test/message/bug",
+            mailing_list="pgsql-bugs",
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            store = StateStore(Path(temp) / "state.db")
+            sink = ConsoleSink(verbose=False)
+            report = SyncEngine(store, sink).sync_bugs(
+                FixtureSource("bugs-test", (bug,))
+            )
+            self.assertEqual(report.bugs_changed, 1)
+            mirror = store.conversation(bug.thread_id, "issue")
+            self.assertIsNotNone(mirror)
+            actions = [name for name, _ in sink.actions]
+            self.assertIn("open issue", actions)
+            self.assertIn("sync labels", actions)
+            self.assertIn("lock conversation", actions)
+            store.close()
+
+    def test_discussion_is_linked_when_thread_later_gets_patch(self) -> None:
+        root = MailMessage(
+            message_id="proposal@example.test",
+            thread_id="proposal@example.test",
+            subject="Proposal: a new executor feature",
+            author="Alice",
+            sent_at="2026-09-07T00:00:00+00:00",
+            body="Design discussion first.",
+            archive_url="https://example.test/message/proposal",
+        )
+        patch = replace(
+            root,
+            message_id="patch@example.test",
+            subject="Re: [PATCH v1] Proposal: a new executor feature",
+            attachments=(
+                Attachment(
+                    name="v1-0001-feature.patch",
+                    url="https://example.test/v1-0001-feature.patch",
+                ),
+            ),
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            store = StateStore(Path(temp) / "state.db")
+            sink = ConsoleSink(verbose=False)
+            report = SyncEngine(store, sink).sync_mail(
+                FixtureSource("transition-test", (root, patch))
+            )
+            self.assertEqual(report.mail_changed, 2)
+            self.assertIsNotNone(store.conversation(root.thread_id, "discussion"))
+            self.assertIsNotNone(store.thread(root.thread_id))
+            self.assertIn("link discussion", [name for name, _ in sink.actions])
+            store.close()
+
     def test_git_source_uses_commit_hash_cursor(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

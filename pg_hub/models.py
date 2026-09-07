@@ -41,6 +41,7 @@ class MailMessage:
     sent_at: str
     body: str
     archive_url: str
+    mailing_list: str = "pgsql-hackers"
     in_reply_to: str | None = None
     attachments: tuple[Attachment, ...] = field(default_factory=tuple)
 
