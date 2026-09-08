@@ -40,7 +40,7 @@ jobs:
           client-id: ${{ vars.PG_HUB_APP_CLIENT_ID }}
           private-key: ${{ secrets.PG_HUB_APP_PRIVATE_KEY }}
           owner: MisterRaindrop
-          repositories: pg_hub
+          repositories: postgresql-github-mirror
 
       - name: Restore PostgreSQL git cache
         uses: actions/cache@v6
