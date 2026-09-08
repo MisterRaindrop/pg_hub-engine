@@ -205,6 +205,9 @@ scheduled runs always use the live sources.
   Empty, conflicting, or base-incompatible attachments are reported and skipped
   without blocking the rest of the batch; a later valid revision in the thread
   can still create or update its mirror PR. The previous branch remains available.
+- Patch sets that modify `.github/workflows/**` are reported and skipped. Mirrored
+  email attachments are untrusted, so the Bot deliberately has no permission to
+  publish executable GitHub Actions workflows.
 - Patch branches use a depth-1 checkout of the configured GitHub mirror base;
   postgres.git commit polling keeps only a bounded, blobless recent history.
   GitHub Actions reads commits from PostgreSQL's official `postgres/postgres`

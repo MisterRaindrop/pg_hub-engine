@@ -491,6 +491,7 @@ class PatchPublisher:
                     temp_path,
                 )
                 self._apply_patchset(worktree, patches)
+                self._reject_workflow_changes(worktree)
                 self._push(worktree, branch)
             finally:
                 subprocess.run(
@@ -571,6 +572,19 @@ class PatchPublisher:
             "-c", "user.email=pg-hub@invalid.example",
             "commit", "-m", "Apply mirrored PostgreSQL patch set",
         )
+
+    def _reject_workflow_changes(self, worktree: Path) -> None:
+        base = f"origin/{self.config.github_base_branch}"
+        changed = self._run(
+            "git", "-C", str(worktree), "diff", "--name-only",
+            f"{base}...HEAD", "--", ".github/workflows",
+        ).splitlines()
+        if changed:
+            paths = ", ".join(changed)
+            raise PatchSetUnavailableError(
+                "patch modifies protected GitHub Actions workflow files; "
+                f"the read-only mirror will not publish them: {paths}"
+            )
 
     def _push(self, worktree: Path, branch: str) -> None:
         remote = f"https://github.com/{self.config.github_repository}.git"

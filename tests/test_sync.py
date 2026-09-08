@@ -139,6 +139,43 @@ class SyncTests(unittest.TestCase):
             )
             self.assertEqual(count.stdout.strip(), "2")
 
+    def test_patch_publisher_rejects_workflow_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            repository = Path(temp) / "postgres"
+            subprocess.run(["git", "init", "-q", "-b", "master", str(repository)], check=True)
+            subprocess.run(
+                ["git", "-C", str(repository), "config", "user.name", "Test"], check=True
+            )
+            subprocess.run(
+                ["git", "-C", str(repository), "config", "user.email", "test@example.test"], check=True
+            )
+            (repository / "README").write_text("base\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(repository), "add", "README"], check=True)
+            subprocess.run(
+                ["git", "-C", str(repository), "commit", "-q", "-m", "base"], check=True
+            )
+            subprocess.run(
+                [
+                    "git", "-C", str(repository), "update-ref",
+                    "refs/remotes/origin/master", "HEAD",
+                ],
+                check=True,
+            )
+            workflows = repository / ".github" / "workflows"
+            workflows.mkdir(parents=True)
+            (workflows / "unsafe.yml").write_text("on: push\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(repository), "add", ".github"], check=True)
+            subprocess.run(
+                ["git", "-C", str(repository), "commit", "-q", "-m", "workflow"], check=True
+            )
+
+            config = replace(Config.from_env(), cache_path=Path(temp) / "cache")
+            publisher = PatchPublisher(config, GitHubAuth(config))
+            with self.assertRaisesRegex(
+                PatchSetUnavailableError, "protected GitHub Actions workflow files"
+            ):
+                publisher._reject_workflow_changes(repository)
+
     def test_patch_series_is_ordered_and_selects_master_variant(self) -> None:
         attachments = tuple(
             Attachment(name=name, url=f"https://example.test/{name}")
